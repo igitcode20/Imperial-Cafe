@@ -33,7 +33,7 @@ export default function Header() {
           <div className="logo-container">
             <div className="logo">
               <img 
-                src="/src/assets/images/logo-imperial.jpeg" 
+                src="/assets/images/logo-imperial.jpeg" 
                 alt="Café Imperial" 
                 className="logo-img"
                 onError={(e) => {

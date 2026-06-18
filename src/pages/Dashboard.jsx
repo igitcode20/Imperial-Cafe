@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../services/supabase";
+import Notification from "../components/Notification";
 import { 
   FaImage, FaPlus, FaTrash, FaEye, 
   FaSignOutAlt, FaFile, FaFilePdf, 
@@ -20,10 +21,18 @@ export default function Dashboard() {
   const [seccionActiva, setSeccionActiva] = useState("todas");
   const [modoVista, setModoVista] = useState("grid");
   const [cargando, setCargando] = useState(false);
+  
+  // Notificaciones
+  const [notificacion, setNotificacion] = useState(null);
 
   useEffect(() => {
     obtenerContenido();
   }, []);
+
+  function mostrarNotificacion(message, type = 'success') {
+    setNotificacion({ message, type });
+    setTimeout(() => setNotificacion(null), 4000);
+  }
 
   async function obtenerContenido() {
     const { data } = await supabase
@@ -34,10 +43,8 @@ export default function Dashboard() {
     setContenido(data || []);
   }
 
-  // Función para obtener el ícono según el tipo de archivo
   function getFileIcon(url) {
     if (!url) return <FaFileAlt />;
-    
     const extension = url.split('.').pop()?.toLowerCase();
     
     switch(extension) {
@@ -58,10 +65,8 @@ export default function Dashboard() {
     }
   }
 
-  // Función para obtener el color según el tipo de archivo
   function getFileColor(url) {
     if (!url) return '#6c757d';
-    
     const extension = url.split('.').pop()?.toLowerCase();
     
     switch(extension) {
@@ -82,14 +87,12 @@ export default function Dashboard() {
     }
   }
 
-  // Verificar si es una imagen
   function esImagen(url) {
     if (!url) return false;
     const extension = url.split('.').pop()?.toLowerCase();
     return ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(extension);
   }
 
-  // Obtener nombre del archivo
   function getFileName(url) {
     if (!url) return 'archivo';
     return url.split('/').pop();
@@ -109,7 +112,7 @@ export default function Dashboard() {
         .upload(nombre, archivo);
 
       if (error) {
-        alert(`Error al subir archivo: ${error.message}`);
+        mostrarNotificacion(`❌ Error al subir archivo: ${error.message}`, 'error');
         setCargando(false);
         return;
       }
@@ -132,7 +135,7 @@ export default function Dashboard() {
       });
 
     if (error) {
-      alert(`Error al guardar: ${error.message}`);
+      mostrarNotificacion(`❌ Error al guardar: ${error.message}`, 'error');
       setCargando(false);
       return;
     }
@@ -147,53 +150,53 @@ export default function Dashboard() {
 
     await obtenerContenido();
     setCargando(false);
-    alert("¡Contenido guardado exitosamente!");
+    
+    mostrarNotificacion(`✅ "${titulo}" agregado exitosamente a ${tipo}`, 'success');
   }
 
   async function eliminarContenido(item) {
     const confirmar = window.confirm(
-      "¿Eliminar este contenido?"
+      `¿Eliminar "${item.titulo}" de ${item.tipo}?`
     );
 
     if (!confirmar) return;
 
     if (item.archivo_url) {
-      const nombreArchivo = item.archivo_url
-        .split("/")
-        .pop();
-
-      await supabase.storage
-        .from("cafe-imperial")
-        .remove([nombreArchivo]);
+      const nombreArchivo = item.archivo_url.split("/").pop();
+      await supabase.storage.from("cafe-imperial").remove([nombreArchivo]);
     }
 
-    await supabase
-      .from("contenido")
-      .delete()
-      .eq("id", item.id);
+    await supabase.from("contenido").delete().eq("id", item.id);
 
     await obtenerContenido();
+    mostrarNotificacion(`🗑️ "${item.titulo}" eliminado correctamente`, 'warning');
   }
 
-  // Cerrar sesión y redirigir al Home
   async function cerrarSesion() {
     const confirmar = window.confirm("¿Estás seguro de que quieres cerrar sesión?");
-    
     if (!confirmar) return;
     
     await supabase.auth.signOut();
-    navigate("/"); // ← Redirige al Home
+    navigate("/");
   }
 
-  // Filtrar contenido por sección
   const contenidoFiltrado = seccionActiva === "todas" 
     ? contenido 
     : contenido.filter(item => item.tipo === seccionActiva);
 
   return (
     <div className="dashboard-container">
+      {/* Notificaciones */}
+      {notificacion && (
+        <Notification
+          message={notificacion.message}
+          type={notificacion.type}
+          onClose={() => setNotificacion(null)}
+        />
+      )}
+
       <div className="dashboard-header">
-        <h1>Panel de Administración</h1>
+        <h1>☕ Panel de Administración</h1>
         <div className="dashboard-actions">
           <button 
             className={`view-toggle ${modoVista === 'grid' ? 'active' : ''}`}
@@ -207,10 +210,7 @@ export default function Dashboard() {
           >
             <FaEye /> Lista
           </button>
-          <button 
-            className="logout-btn"
-            onClick={cerrarSesion}
-          >
+          <button className="logout-btn" onClick={cerrarSesion}>
             <FaSignOutAlt /> Cerrar Sesión
           </button>
         </div>
@@ -219,7 +219,7 @@ export default function Dashboard() {
       <div className="dashboard-layout">
         {/* Panel Izquierdo: Formulario */}
         <div className="dashboard-form-panel">
-          <h2>Agregar Nuevo Contenido</h2>
+          <h2>📝 Agregar Nuevo Contenido</h2>
           <form onSubmit={guardarContenido} className="admin-form">
             <input
               type="text"
@@ -240,7 +240,7 @@ export default function Dashboard() {
               onChange={(e) => setTipo(e.target.value)}
               required
             >
-              <option value="">Selecciona una sección *</option>
+              <option value="">📂 Selecciona una sección *</option>
               <option value="banner">📸 Banner</option>
               <option value="integrador">👥 Integrador</option>
               <option value="metodologia-investigacion">🔍 Metodología de investigación</option>
@@ -276,7 +276,7 @@ export default function Dashboard() {
                 </span>
               )}
               <small className="file-hint">
-                Formatos soportados: PDF, Word, Excel, PowerPoint, Imágenes (JPG, PNG, GIF, etc.)
+                📁 PDF, Word, Excel, PowerPoint, Imágenes (JPG, PNG, GIF, etc.)
               </small>
             </div>
 
@@ -291,7 +291,7 @@ export default function Dashboard() {
 
           {/* Vista Previa del Formulario */}
           <div className="form-preview">
-            <h3>Vista Previa</h3>
+            <h3>👁️ Vista Previa</h3>
             <div className="preview-card">
               {titulo && <h4>{titulo}</h4>}
               {descripcion && <p>{descripcion}</p>}
@@ -309,7 +309,7 @@ export default function Dashboard() {
                 </div>
               )}
               {tipo && (
-                <span className="preview-tag">Sección: {tipo}</span>
+                <span className="preview-tag">📌 {tipo.replace('-', ' ')}</span>
               )}
             </div>
           </div>
@@ -322,7 +322,7 @@ export default function Dashboard() {
               className={`filter-btn ${seccionActiva === 'todas' ? 'active' : ''}`}
               onClick={() => setSeccionActiva('todas')}
             >
-              Todas ({contenido.length})
+              📊 Todas ({contenido.length})
             </button>
             <button 
               className={`filter-btn ${seccionActiva === 'banner' ? 'active' : ''}`}
@@ -357,7 +357,7 @@ export default function Dashboard() {
           </div>
 
           <div className="content-list">
-            <h3>Contenido Existente ({contenidoFiltrado.length})</h3>
+            <h3>📋 Contenido Existente ({contenidoFiltrado.length})</h3>
             
             {contenidoFiltrado.length === 0 ? (
               <div className="empty-state">
@@ -385,6 +385,9 @@ export default function Dashboard() {
                         <div className="item-file">
                           <div className="file-icon" style={{ color: getFileColor(item.archivo_url) }}>
                             {getFileIcon(item.archivo_url)}
+                            <span style={{ fontSize: '0.8rem', marginLeft: '8px' }}>
+                              {getFileName(item.archivo_url)}
+                            </span>
                           </div>
                           <a 
                             href={item.archivo_url} 
@@ -392,7 +395,7 @@ export default function Dashboard() {
                             rel="noopener noreferrer"
                             className="file-link"
                           >
-                            <FaDownload /> {getFileName(item.archivo_url)}
+                            <FaDownload /> Abrir / Descargar
                           </a>
                           {esImagen(item.archivo_url) && (
                             <a 
@@ -418,7 +421,7 @@ export default function Dashboard() {
 
                     <div className="item-footer">
                       <span className="item-date">
-                        {new Date(item.created_at).toLocaleDateString('es-ES')}
+                        📅 {new Date(item.created_at).toLocaleDateString('es-ES')}
                       </span>
                     </div>
                   </div>
@@ -426,118 +429,6 @@ export default function Dashboard() {
               </div>
             )}
           </div>
-        </div>
-      </div>
-
-      {/* Vista Previa del Sitio */}
-      <div className="site-preview">
-        <h2>📱 Vista Previa del Sitio</h2>
-        <div className="preview-container">
-          {/* Banner */}
-          {contenido.find(item => item.tipo === 'banner') && (
-            <div className="preview-section preview-banner">
-              {(() => {
-                const banner = contenido.find(item => item.tipo === 'banner');
-                return banner?.archivo_url && esImagen(banner.archivo_url) ? (
-                  <a href={banner.archivo_url} target="_blank" rel="noopener noreferrer">
-                    <img src={banner.archivo_url} alt="Banner" />
-                  </a>
-                ) : (
-                  <div className="preview-placeholder">
-                    <h3>{banner?.titulo || 'Banner'}</h3>
-                    <p>{banner?.descripcion || 'Contenido del banner'}</p>
-                    {banner?.archivo_url && (
-                      <a href={banner.archivo_url} target="_blank" rel="noopener noreferrer" className="preview-download-btn">
-                        <FaDownload /> Descargar archivo
-                      </a>
-                    )}
-                  </div>
-                );
-              })()}
-              <span className="preview-label">📸 Banner</span>
-            </div>
-          )}
-
-          {/* Tarjetas de Metodologías */}
-          <div className="preview-section preview-cards">
-            <h3>📚 Metodologías</h3>
-            <div className="preview-grid">
-              {contenido
-                .filter(item => ['integrador', 'metodologia-investigacion', 'metodologia-diseno', 'tratamiento-imagenes', 'ilustracion-digital', 'evidencias-proceso'].includes(item.tipo))
-                .slice(0, 6)
-                .map(item => (
-                  <div key={item.id} className="preview-card-small">
-                    <h4>{item.titulo}</h4>
-                    {item.descripcion && <p>{item.descripcion.substring(0, 60)}...</p>}
-                    {item.archivo_url && (
-                      <a href={item.archivo_url} target="_blank" rel="noopener noreferrer" className="preview-file-link">
-                        {getFileIcon(item.archivo_url)} Ver archivo
-                      </a>
-                    )}
-                    <span className="preview-label">{item.tipo.replace('-', ' ')}</span>
-                  </div>
-                ))}
-            </div>
-          </div>
-
-          {/* Evidencias */}
-          {contenido.filter(item => item.tipo === 'evidencias').length > 0 && (
-            <div className="preview-section preview-evidencias">
-              <h3>🖼️ Evidencias</h3>
-              <div className="preview-grid">
-                {contenido
-                  .filter(item => item.tipo === 'evidencias')
-                  .slice(0, 4)
-                  .map(item => (
-                    <div key={item.id} className="preview-card-small">
-                      {item.archivo_url && esImagen(item.archivo_url) ? (
-                        <a href={item.archivo_url} target="_blank" rel="noopener noreferrer">
-                          <img src={item.archivo_url} alt={item.titulo} />
-                        </a>
-                      ) : (
-                        <div className="file-placeholder">
-                          {getFileIcon(item.archivo_url)}
-                          <span>{getFileName(item.archivo_url)}</span>
-                          {item.archivo_url && (
-                            <a href={item.archivo_url} target="_blank" rel="noopener noreferrer" className="file-download-link">
-                              <FaDownload /> Descargar
-                            </a>
-                          )}
-                        </div>
-                      )}
-                      <h4>{item.titulo}</h4>
-                      <span className="preview-label">📄 Documento</span>
-                    </div>
-                  ))}
-              </div>
-            </div>
-          )}
-
-          {/* Documentos */}
-          {contenido.filter(item => item.tipo === 'documentos').length > 0 && (
-            <div className="preview-section preview-documentos">
-              <h3>📄 Documentos</h3>
-              <div className="documentos-grid">
-                {contenido
-                  .filter(item => item.tipo === 'documentos')
-                  .map(item => (
-                    <a 
-                      key={item.id}
-                      href={item.archivo_url} 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="documento-item"
-                    >
-                      <span style={{ color: getFileColor(item.archivo_url) }}>
-                        {getFileIcon(item.archivo_url)}
-                      </span>
-                      <span className="doc-title">{item.titulo}</span>
-                      <span className="doc-download"><FaDownload /></span>
-                    </a>
-                  ))}
-              </div>
-            </div>
-          )}
         </div>
       </div>
     </div>
